@@ -74,11 +74,14 @@ bool DryRunCommandRunner::WaitForCommand(Result* result) {
    return true;
 }
 
+const int64_t kTerseIntervalMillies = 15 * 1000;
+
 }  // namespace
 
 BuildStatus::BuildStatus(const BuildConfig& config)
     : config_(config),
       start_time_millis_(GetTimeMillis()),
+      terse_status_time_millis_(start_time_millis_ - kTerseIntervalMillies),
       started_edges_(0), finished_edges_(0), total_edges_(0),
       progress_status_format_(NULL),
       overall_rate_(), current_rate_(config.parallelism) {
@@ -96,7 +99,7 @@ void BuildStatus::PlanHasTotalEdges(int total) {
   total_edges_ = total;
 }
 
-void BuildStatus::BuildEdgeStarted(const Edge* edge) {
+void BuildStatus::BuildEdgeStarted(Edge* edge) {
   assert(running_edges_.find(edge) == running_edges_.end());
   int start_time = (int)(GetTimeMillis() - start_time_millis_);
   running_edges_.insert(make_pair(edge, start_time));
@@ -129,8 +132,10 @@ void BuildStatus::BuildEdgeFinished(Edge* edge,
   if (config_.verbosity == BuildConfig::QUIET)
     return;
 
-  if (!edge->use_console())
-    PrintStatus(edge, kEdgeFinished);
+  if (!success || !output.empty())
+    PrintStatus(edge, kEdgeFinishedWithOutput);
+  else if (!edge->use_console())
+    PrintStatus(edge, kEdgeFinishedWithoutOutput);
 
   // Print the command that is spewing before printing its output.
   if (!success) {
@@ -231,7 +236,7 @@ string BuildStatus::FormatProgressStatus(
       case 'r': {
         int running_edges = started_edges_ - finished_edges_;
         // count the edge that just finished as a running edge
-        if (status == kEdgeFinished)
+        if (status != kEdgeStarted)
           running_edges++;
         snprintf(buf, sizeof(buf), "%d", running_edges);
         out += buf;
@@ -290,10 +295,27 @@ string BuildStatus::FormatProgressStatus(
   return out;
 }
 
-void BuildStatus::PrintStatus(const Edge* edge, EdgeStatus status) {
+void BuildStatus::PrintStatus(Edge* edge, EdgeStatus status) {
   if (config_.verbosity == BuildConfig::QUIET
       || config_.verbosity == BuildConfig::NO_STATUS_UPDATE)
     return;
+
+  if (config_.verbosity == BuildConfig::TERSE) {
+    const int64_t now = GetTimeMillis();
+
+    if (status == kEdgeFinishedWithOutput) {
+      // already printed status line?
+      if (edge->status_printed_)
+        return;
+    } else if (now - terse_status_time_millis_ < kTerseIntervalMillies) {
+      // print periodic status?
+      return;
+    }
+
+    terse_status_time_millis_ = now;
+  }
+
+  edge->status_printed_ = true;
 
   bool force_full_command = config_.verbosity == BuildConfig::VERBOSE;
 

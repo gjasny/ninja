@@ -208,6 +208,7 @@ void Usage(const BuildConfig& config) {
 "  --version      print ninja version (\"%s\")\n"
 "  -v, --verbose  show all command lines while building\n"
 "  --quiet        don't show progress status, just command output\n"
+"  --terse        periodically show progress status, and full command output\n"
 "\n"
 "  -C DIR   change to DIR before doing anything else\n"
 "  -f FILE  specify input build file [default=build.ninja]\n"
@@ -1259,9 +1260,10 @@ int ReadFlags(int* argc, char*** argv,
               Options* options, BuildConfig* config) {
   config->parallelism = GuessParallelism();
 
-  enum { OPT_VERSION = 1, OPT_QUIET = 2 };
+  enum { OPT_VERSION = 1, OPT_QUIET = 2, OPT_TERSE = 3 };
   const option kLongOptions[] = {
     { "help", no_argument, NULL, 'h' },
+    { "terse", no_argument, NULL, OPT_TERSE },
     { "version", no_argument, NULL, OPT_VERSION },
     { "verbose", no_argument, NULL, 'v' },
     { "quiet", no_argument, NULL, OPT_QUIET },
@@ -1321,6 +1323,9 @@ int ReadFlags(int* argc, char*** argv,
         break;
       case 'v':
         config->verbosity = BuildConfig::VERBOSE;
+        break;
+      case OPT_TERSE:
+        config->verbosity = BuildConfig::TERSE;
         break;
       case OPT_QUIET:
         config->verbosity = BuildConfig::NO_STATUS_UPDATE;

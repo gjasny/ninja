@@ -164,6 +164,7 @@ struct BuildConfig {
   enum Verbosity {
     QUIET,  // No output -- used when testing.
     NO_STATUS_UPDATE,  // just regular output but suppress status update
+    TERSE, // periodically print status update
     NORMAL,  // regular output and status update
     VERBOSE
   };
@@ -241,7 +242,7 @@ struct Builder {
 struct BuildStatus {
   explicit BuildStatus(const BuildConfig& config);
   void PlanHasTotalEdges(int total);
-  void BuildEdgeStarted(const Edge* edge);
+  void BuildEdgeStarted(Edge* edge);
   void BuildEdgeFinished(Edge* edge, bool success, const string& output,
                          int* start_time, int* end_time);
   void BuildLoadDyndeps();
@@ -250,7 +251,8 @@ struct BuildStatus {
 
   enum EdgeStatus {
     kEdgeStarted,
-    kEdgeFinished,
+    kEdgeFinishedWithoutOutput,
+    kEdgeFinishedWithOutput,
   };
 
   /// Format the progress status string by replacing the placeholders.
@@ -262,12 +264,15 @@ struct BuildStatus {
                               EdgeStatus status) const;
 
  private:
-  void PrintStatus(const Edge* edge, EdgeStatus status);
+  void PrintStatus(Edge* edge, EdgeStatus status);
 
   const BuildConfig& config_;
 
   /// Time the build started.
   int64_t start_time_millis_;
+
+  // Time the last terse update happened
+  int64_t terse_status_time_millis_;
 
   int started_edges_, finished_edges_, total_edges_;
 
